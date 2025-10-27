@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, Users, Flag, MoreVertical, Play, Pause, CheckCircle, Archive, FolderTree } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { Project } from '../../services/projectService';
 
 interface ProjectCardProps {
   project: Project;
@@ -9,24 +10,6 @@ interface ProjectCardProps {
   onDelete: (projectId: string) => void;
   onCreateSubProject: (parentProject: Project) => void;
   onStatusChange: (projectId: string, status: string) => void;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'planning' | 'active' | 'paused' | 'completed' | 'archived';
-  progress: number;
-  teamMembers: number;
-  tasksTotal: number;
-  tasksCompleted: number;
-  parentId?: string;
-  subProjects?: number;
-  tags: string[];
-  daysRemaining: number;
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -95,7 +78,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-3">
-              {project.parentId && (
+              {project.parent_id && (
                 <FolderTree className="w-4 h-4 text-gray-400" />
               )}
               <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -126,21 +109,21 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <div className="flex items-center space-x-6 ml-4">
             <div className="text-center">
               <div className="text-sm font-medium text-gray-900">
-                {project.tasksCompleted}/{project.tasksTotal}
+                {project.tasks_completed || 0}/{project.tasks_total || 0}
               </div>
               <div className="text-xs text-gray-500">任务</div>
             </div>
 
             <div className="text-center">
               <div className="text-sm font-medium text-gray-900">
-                {project.teamMembers}
+                {project.team_members || 0}
               </div>
               <div className="text-xs text-gray-500">成员</div>
             </div>
 
             <div className="text-center">
               <div className="text-sm font-medium text-gray-900">
-                {project.daysRemaining}天
+                {project.end_date ? Math.max(0, Math.ceil((new Date(project.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0}天
               </div>
               <div className="text-xs text-gray-500">剩余</div>
             </div>
@@ -148,12 +131,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <div className="w-24">
               <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                 <span>进度</span>
-                <span>{project.progress}%</span>
+                <span>{project.progress || 0}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${project.progress}%` }}
+                  style={{ width: `${project.progress || 0}%` }}
                 />
               </div>
             </div>
@@ -220,19 +203,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200 hover:border-gray-300">
       <div className="flex items-start justify-between mb-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2 mb-2">
-            {project.parentId && (
-              <FolderTree className="w-4 h-4 text-gray-400" />
-            )}
-            <h3 className="text-lg font-semibold text-gray-900 truncate">
-              {project.name}
-            </h3>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 mb-2">
+              {project.parent_id && (
+                <FolderTree className="w-4 h-4 text-gray-400" />
+              )}
+              <h3 className="text-lg font-semibold text-gray-900 truncate">
+                {project.name}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 line-clamp-3 mb-3">
+              {project.description}
+            </p>
           </div>
-          <p className="text-sm text-gray-600 line-clamp-3 mb-3">
-            {project.description}
-          </p>
-        </div>
 
         <div className="relative ml-2">
           <button
@@ -289,9 +272,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       </div>
 
       {/* Tags */}
-      {project.tags.length > 0 && (
+      {project.tags && project.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-4">
-          {project.tags.slice(0, 3).map((tag, index) => (
+          {project.tags.slice(0, 3).map((tag: string, index: number) => (
             <span
               key={index}
               className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md"
@@ -329,12 +312,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
           <span>项目进度</span>
-          <span>{project.progress}%</span>
+          <span>{project.progress || 0}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${project.progress}%` }}
+            style={{ width: `${project.progress || 0}%` }}
           />
         </div>
       </div>
@@ -346,7 +329,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <Calendar className="w-4 h-4" />
           </div>
           <div className="text-sm font-medium text-gray-900">
-            {project.daysRemaining}天
+            {project.end_date ? Math.max(0, Math.ceil((new Date(project.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0}天
           </div>
           <div className="text-xs text-gray-500">剩余</div>
         </div>
@@ -355,7 +338,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <Users className="w-4 h-4" />
           </div>
           <div className="text-sm font-medium text-gray-900">
-            {project.teamMembers}
+            {project.team_members || 0}
           </div>
           <div className="text-xs text-gray-500">成员</div>
         </div>
@@ -364,18 +347,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <CheckCircle className="w-4 h-4" />
           </div>
           <div className="text-sm font-medium text-gray-900">
-            {project.tasksCompleted}/{project.tasksTotal}
+            {project.tasks_completed || 0}/{project.tasks_total || 0}
           </div>
           <div className="text-xs text-gray-500">任务</div>
         </div>
       </div>
 
       {/* Sub-projects indicator */}
-      {project.subProjects && project.subProjects > 0 && (
+      {project.sub_projects && project.sub_projects > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center text-sm text-gray-600">
             <FolderTree className="w-4 h-4 mr-2" />
-            <span>{project.subProjects} 个子项目</span>
+            <span>{project.sub_projects} 个子项目</span>
           </div>
         </div>
       )}

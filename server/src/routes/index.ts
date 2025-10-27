@@ -4,6 +4,7 @@ import noteRoutes from './notes';
 import todoRoutes from './todos';
 import aiRoutes from './ai';
 import notificationRoutes from './notifications';
+import projectRoutes from './projects';
 
 const router = Router();
 
@@ -21,6 +22,9 @@ router.use('/ai', aiRoutes);
 
 // 通知相关路由
 router.use('/notifications', notificationRoutes);
+
+// 项目管理相关路由
+router.use('/projects', projectRoutes);
 
 // 健康检查
 router.get('/health', (req, res) => {

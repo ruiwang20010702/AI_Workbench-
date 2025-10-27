@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Grid3X3, List, Calendar, BarChart3, PieChart, TreePine } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ProjectCard } from '../components/projects/ProjectCard';
@@ -6,26 +6,18 @@ import { ProjectCreateModal } from '../components/projects/ProjectCreateModal';
 import { ProjectFilters } from '../components/projects/ProjectFilters';
 import { ProjectDashboard } from '../components/projects/ProjectDashboard';
 import { ProjectHierarchy } from '../components/projects/ProjectHierarchy';
+import { 
+  Project, 
+  CreateProjectRequest, 
+  ProjectStats,
+  projectService 
+} from '../services/projectService';
+import taskService, { CreateTaskRequest, type Task } from '../services/taskService';
+import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
+import { TaskKanbanBoard } from '../components/tasks/TaskKanbanBoard';
+import { ProjectGanttChart } from '../components/projects/ProjectGanttChart.tsx';
 
 type ViewMode = 'dashboard' | 'grid' | 'list' | 'kanban' | 'gantt' | 'hierarchy';
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'planning' | 'active' | 'paused' | 'completed' | 'archived';
-  progress: number;
-  teamMembers: number;
-  tasksTotal: number;
-  tasksCompleted: number;
-  parentId?: string;
-  subProjects?: number;
-  tags: string[];
-  daysRemaining: number;
-}
 
 interface ProjectFilters {
   search: string;
@@ -41,153 +33,24 @@ interface ProjectFilters {
   parentId: string | null;
 }
 
-interface ProjectFormData {
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'planning' | 'active' | 'paused' | 'completed' | 'archived';
-  parentId?: string;
-  teamMembers: string[];
-  tags: string[];
-  attachments: File[];
-}
 
-// Mock data with enhanced structure
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'AI工作台前端重构',
-    description: '使用React和TypeScript重构现有的AI工作台前端界面，提升用户体验和代码可维护性。包含组件库建设、状态管理优化、性能提升等多个子任务。',
-    startDate: '2024-01-15',
-    endDate: '2024-03-15',
-    priority: 'high',
-    status: 'active',
-    progress: 65,
-    teamMembers: 4,
-    tasksTotal: 24,
-    tasksCompleted: 16,
-    subProjects: 3,
-    tags: ['前端', 'React', 'TypeScript', '重构'],
-    daysRemaining: 25
-  },
-  {
-    id: '2',
-    name: '用户权限管理系统',
-    description: '开发完整的用户权限管理系统，支持角色分配和细粒度权限控制。',
-    startDate: '2024-02-01',
-    endDate: '2024-04-01',
-    priority: 'medium',
-    status: 'planning',
-    progress: 20,
-    teamMembers: 3,
-    tasksTotal: 18,
-    tasksCompleted: 4,
-    subProjects: 2,
-    tags: ['后端', '权限', '安全'],
-    daysRemaining: 45
-  },
-  {
-    id: '3',
-    name: 'API文档自动化',
-    description: '实现API文档的自动生成和维护，提升开发效率。',
-    startDate: '2024-01-01',
-    endDate: '2024-02-28',
-    priority: 'low',
-    status: 'completed',
-    progress: 100,
-    teamMembers: 2,
-    tasksTotal: 12,
-    tasksCompleted: 12,
-    tags: ['文档', '自动化', 'API'],
-    daysRemaining: 0
-  },
-  {
-    id: '4',
-    name: '组件库设计系统',
-    description: '为AI工作台前端重构项目提供统一的组件库和设计系统。',
-    startDate: '2024-01-20',
-    endDate: '2024-02-20',
-    priority: 'high',
-    status: 'active',
-    progress: 80,
-    teamMembers: 2,
-    tasksTotal: 15,
-    tasksCompleted: 12,
-    parentId: '1',
-    tags: ['设计', '组件', 'UI'],
-    daysRemaining: 10
-  },
-  {
-    id: '5',
-    name: '状态管理重构',
-    description: '使用Redux Toolkit重构应用状态管理，提升性能和可维护性。',
-    startDate: '2024-02-01',
-    endDate: '2024-02-28',
-    priority: 'medium',
-    status: 'paused',
-    progress: 40,
-    teamMembers: 2,
-    tasksTotal: 10,
-    tasksCompleted: 4,
-    parentId: '1',
-    tags: ['状态管理', 'Redux', '重构'],
-    daysRemaining: 15
-  },
-  {
-    id: '6',
-    name: '性能优化',
-    description: '优化应用性能，包括代码分割、懒加载等技术。',
-    startDate: '2024-02-15',
-    endDate: '2024-03-10',
-    priority: 'medium',
-    status: 'planning',
-    progress: 10,
-    teamMembers: 2,
-    tasksTotal: 8,
-    tasksCompleted: 1,
-    parentId: '1',
-    tags: ['性能', '优化', '前端'],
-    daysRemaining: 30
-  },
-  {
-    id: '7',
-    name: '角色管理模块',
-    description: '实现用户角色的创建、编辑和分配功能。',
-    startDate: '2024-02-05',
-    endDate: '2024-03-05',
-    priority: 'high',
-    status: 'active',
-    progress: 30,
-    teamMembers: 2,
-    tasksTotal: 12,
-    tasksCompleted: 4,
-    parentId: '2',
-    tags: ['角色', '权限', '管理'],
-    daysRemaining: 20
-  },
-  {
-    id: '8',
-    name: '权限控制引擎',
-    description: '开发细粒度权限控制引擎，支持资源级别的权限管理。',
-    startDate: '2024-02-10',
-    endDate: '2024-03-20',
-    priority: 'high',
-    status: 'planning',
-    progress: 5,
-    teamMembers: 2,
-    tasksTotal: 15,
-    tasksCompleted: 1,
-    parentId: '2',
-    tags: ['权限', '引擎', '安全'],
-    daysRemaining: 35
-  }
-];
 
 export const ProjectsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+  // 当前选中的项目（用于看板/甘特）
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+
+  // 选中项目的任务
+  const [projectTasks, setProjectTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
+  // 任务弹窗
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskInitialValues, setTaskInitialValues] = useState<Partial<CreateTaskRequest> | undefined>(undefined);
+
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [parentProject, setParentProject] = useState<Project | null>(null);
@@ -202,6 +65,33 @@ export const ProjectsPage: React.FC = () => {
     hasSubProjects: null,
     parentId: null
   });
+
+  // 加载项目数据
+  useEffect(() => {
+    loadProjects();
+  }, [filters]);
+
+
+
+  const loadProjects = async () => {
+    try {
+      // 层级视图需要完整数据以保持父子关系正确，不在服务端按状态/优先级筛选
+      const response = await projectService.getProjects({
+        search: filters.search || undefined,
+        // 在非层级视图下才传递服务端筛选参数；层级视图改为前端裁剪
+        status: viewMode !== 'hierarchy' && filters.status.length > 0 ? filters.status.join(',') : undefined,
+        priority: viewMode !== 'hierarchy' && filters.priority.length > 0 ? filters.priority.join(',') : undefined,
+        parent_id: filters.parentId || undefined
+      });
+      setProjects(response);
+    } catch (error) {
+      console.error('加载项目失败:', error);
+    } finally {
+
+    }
+  };
+
+
 
   const viewModeOptions = [
     { mode: 'dashboard' as ViewMode, icon: PieChart, label: '仪表盘' },
@@ -230,67 +120,178 @@ export const ProjectsPage: React.FC = () => {
     setShowCreateModal(true);
   };
 
-  const handleDeleteProject = (projectId: string) => {
+  const handleDeleteProject = async (projectId: string) => {
     if (confirm('确定要删除这个项目吗？此操作不可撤销。')) {
-      setProjects(prev => prev.filter(p => p.id !== projectId));
+      try {
+        await projectService.deleteProject(projectId);
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+
+      } catch (error) {
+        console.error('删除项目失败:', error);
+        alert('删除项目失败，请稍后重试');
+      }
     }
   };
 
-  const handleStatusChange = (projectId: string, status: string) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, status: status as any } : p
-    ));
+  const handleStatusChange = async (projectId: string, status: Project['status']) => {
+    try {
+      await projectService.updateProject(projectId, { status });
+      setProjects(prev => prev.map(p => 
+        p.id === projectId ? { ...p, status } : p
+      ));
+  
+    } catch (error) {
+      console.error('更新项目状态失败:', error);
+      alert('更新项目状态失败，请稍后重试');
+    }
   };
 
-  const handleProjectSubmit = (projectData: ProjectFormData) => {
-    if (editingProject) {
-      // Update existing project
-      setProjects(prev => prev.map(p => 
-        p.id === editingProject.id 
-          ? { 
-              ...p, 
-              name: projectData.name,
-              description: projectData.description,
-              startDate: projectData.startDate,
-              endDate: projectData.endDate,
-              priority: projectData.priority,
-              status: projectData.status,
-              parentId: projectData.parentId,
-              teamMembers: projectData.teamMembers.length, // Convert string[] to number
-              tags: projectData.tags,
-              daysRemaining: Math.ceil((new Date(projectData.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-            }
-          : p
-      ));
-    } else {
-      // Create new project
-      const newProject: Project = {
-        id: Date.now().toString(),
-        name: projectData.name,
-        description: projectData.description,
-        startDate: projectData.startDate,
-        endDate: projectData.endDate,
-        priority: projectData.priority,
-        status: projectData.status,
-        parentId: projectData.parentId,
-        teamMembers: projectData.teamMembers.length, // Convert string[] to number
-        progress: 0,
-        tasksTotal: 0,
-        tasksCompleted: 0,
-        subProjects: 0,
-        tags: projectData.tags,
-        daysRemaining: Math.ceil((new Date(projectData.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-      };
-      setProjects(prev => [...prev, newProject]);
-      
-      // Update parent project's subProjects count
-      if (projectData.parentId) {
-        setProjects(prev => prev.map(p => 
-          p.id === projectData.parentId 
-            ? { ...p, subProjects: (p.subProjects || 0) + 1 }
-            : p
-        ));
+  // 项目任务操作（看板/甘特）
+  const openCreateTask = (preset?: Partial<CreateTaskRequest>) => {
+    setEditingTask(null);
+    setTaskInitialValues({
+      project_id: selectedProjectId,
+      status: 'pending',
+      priority: 'medium',
+      ...preset
+    });
+    setShowTaskModal(true);
+  };
+
+  const openEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskInitialValues(undefined);
+    setShowTaskModal(true);
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (confirm('确定要删除这个任务吗？此操作不可撤销。')) {
+      try {
+        await taskService.deleteTask(taskId);
+        setProjectTasks(prev => prev.filter(t => t.id !== taskId));
+      } catch (error) {
+        console.error('删除任务失败:', error);
+        alert('删除任务失败，请稍后重试');
       }
+    }
+  };
+
+  const handleTaskStatusChange = async (taskId: string, status: Task['status']) => {
+    try {
+      await taskService.updateTask(taskId, { status });
+      setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
+    } catch (error) {
+      console.error('更新任务状态失败:', error);
+      alert('更新任务状态失败，请稍后重试');
+    }
+  };
+
+  const handleTaskSubmit = async (taskData: CreateTaskRequest) => {
+    try {
+      if (editingTask) {
+        const updatedTask = await taskService.updateTask(editingTask.id, taskData);
+        setProjectTasks(prev => prev.map(t => t.id === editingTask.id ? updatedTask : t));
+      } else {
+        const newTask = await taskService.createTask(taskData);
+        setProjectTasks(prev => [...prev, newTask]);
+      }
+      setShowTaskModal(false);
+      setEditingTask(null);
+      setTaskInitialValues(undefined);
+    } catch (error) {
+      console.error('保存任务失败:', error);
+      alert('保存任务失败，请稍后重试');
+    }
+  };
+
+  // 按邮箱搜索可用用户并批量添加为成员（支持默认角色）
+  const addMembersByEmails = async (projectId: string, emails: string[], role: 'admin' | 'member' | 'observer' = 'member') => {
+    try {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const clean = Array.from(new Set((emails || []).map(e => e.trim()).filter(e => emailRegex.test(e))))
+        .slice(0, 50); // 保护：最多处理 50 个
+      if (clean.length === 0) return { added_count: 0 };
+
+      const requests: Array<{ user_id: string; role: 'admin' | 'member' | 'observer' }> = [];
+      for (const email of clean) {
+        try {
+          const users = await projectService.searchAvailableUsers(projectId, email, 1);
+          if (Array.isArray(users) && users.length > 0) {
+            // 使用传入的默认角色
+            requests.push({ user_id: users[0].id, role });
+          }
+        } catch (err) {
+          console.warn('搜索可用用户失败:', email, err);
+        }
+      }
+
+      if (requests.length === 0) return { added_count: 0 };
+      return await projectService.batchAddProjectMembers(projectId, requests);
+    } catch (error) {
+      console.error('批量添加成员失败:', error);
+      return { added_count: 0 };
+    }
+  };
+
+  const handleProjectSubmit = async (projectData: CreateProjectRequest, teamEmails?: string[], defaultRole?: 'admin' | 'member' | 'observer', initialTasks?: CreateTaskRequest[]) => {
+    try {
+      if (editingProject) {
+        // Update existing project
+        const updatedProject = await projectService.updateProject(editingProject.id, projectData);
+        // 批量添加成员（仅添加尚未在项目中的用户）
+        const addRes = await addMembersByEmails(editingProject.id, teamEmails || [], defaultRole ?? 'member');
+        setProjects(prev => prev.map(p => {
+          if (p.id === editingProject.id) {
+            const added = addRes?.added_count || 0;
+            return { ...updatedProject, team_members: (updatedProject.team_members || 0) + added };
+          }
+          return p;
+        }));
+
+        // 编辑模式也支持创建初始任务（第4步的任务）
+        if (initialTasks && initialTasks.length > 0) {
+          try {
+            for (const taskData of initialTasks) {
+              const taskWithProject = { ...taskData, project_id: editingProject.id };
+              await taskService.createTask(taskWithProject);
+            }
+          } catch (taskError) {
+            console.error('创建初始任务失败:', taskError);
+            // 不阻止项目更新，只记录错误
+          }
+        }
+      } else {
+        // Create new project
+        const newProject = await projectService.createProject(projectData);
+        
+        // 批量添加成员（仅添加尚未在项目中的用户）
+        const addRes = await addMembersByEmails(newProject.id, teamEmails || [], defaultRole ?? 'member');
+        const added = addRes?.added_count || 0;
+        
+        // 创建初始任务
+        if (initialTasks && initialTasks.length > 0) {
+          try {
+            for (const taskData of initialTasks) {
+              // 设置项目ID
+              const taskWithProject = { ...taskData, project_id: newProject.id };
+              await taskService.createTask(taskWithProject);
+            }
+          } catch (taskError) {
+            console.error('创建初始任务失败:', taskError);
+            // 不阻止项目创建，只是记录错误
+          }
+        }
+        
+        setProjects(prev => [...prev, { ...newProject, team_members: (newProject.team_members || 0) + added }]);
+      }
+      
+      setShowCreateModal(false);
+      setEditingProject(null);
+      setParentProject(null);
+
+    } catch (error) {
+      console.error('保存项目失败:', error);
+      alert('保存项目失败，请稍后重试');
     }
   };
 
@@ -312,7 +313,7 @@ export const ProjectsPage: React.FC = () => {
   const filteredProjects = projects.filter(project => {
     // Search filter
     if (filters.search && !project.name.toLowerCase().includes(filters.search.toLowerCase()) &&
-        !project.description.toLowerCase().includes(filters.search.toLowerCase())) {
+        !(project.description?.toLowerCase().includes(filters.search.toLowerCase()))) {
       return false;
     }
 
@@ -327,10 +328,10 @@ export const ProjectsPage: React.FC = () => {
     }
 
     // Date range filter
-    if (filters.dateRange.start && project.startDate < filters.dateRange.start) {
+    if (filters.dateRange.start && (!project.start_date || project.start_date < filters.dateRange.start)) {
       return false;
     }
-    if (filters.dateRange.end && project.endDate > filters.dateRange.end) {
+    if (filters.dateRange.end && (!project.end_date || project.end_date > filters.dateRange.end)) {
       return false;
     }
 
@@ -345,40 +346,56 @@ export const ProjectsPage: React.FC = () => {
     return true;
   });
 
-  // Calculate project statistics
-  const projectStats = useMemo(() => {
-    const totalProjects = filteredProjects.length;
-    const activeProjects = filteredProjects.filter(p => p.status === 'active').length;
-    const completedProjects = filteredProjects.filter(p => p.status === 'completed').length;
-    
-    const totalTasks = filteredProjects.reduce((sum, p) => sum + (p.tasksTotal || 0), 0);
-    const completedTasks = filteredProjects.reduce((sum, p) => sum + (p.tasksCompleted || 0), 0);
-    const totalTeamMembers = filteredProjects.reduce((sum, p) => sum + (p.teamMembers || 0), 0);
-    
-    // Calculate overdue projects (active projects past their end date)
+  // 在看板/甘特视图下默认选择一个项目
+  useEffect(() => {
+    if ((viewMode === 'kanban' || viewMode === 'gantt') && filteredProjects.length > 0) {
+      const exists = filteredProjects.some(p => p.id === selectedProjectId);
+      if (!exists) {
+        setSelectedProjectId(filteredProjects[0].id);
+      }
+    }
+  }, [viewMode, projects, filters]);
+
+  // 加载选中项目的任务（看板/甘特图）
+  useEffect(() => {
+    const loadProjectTasks = async () => {
+      if (!selectedProjectId || (viewMode !== 'kanban' && viewMode !== 'gantt')) return;
+      try {
+        setTasksLoading(true);
+        const res = await taskService.getProjectTasks(selectedProjectId);
+        setProjectTasks(res.tasks || []);
+      } catch (err) {
+        console.error('加载项目任务失败:', err);
+      } finally {
+        setTasksLoading(false);
+      }
+    };
+    void loadProjectTasks();
+  }, [selectedProjectId, viewMode]);
+
+  // 统计数据（对齐 ProjectStats 接口）
+  const projectStats = useMemo((): ProjectStats => {
+    const total_projects = filteredProjects.length;
+    const active_projects = filteredProjects.filter(p => p.status === 'active').length;
+    const completed_projects = filteredProjects.filter(p => p.status === 'completed').length;
+    const total_tasks = filteredProjects.reduce((sum, p) => sum + (p.tasks_total || 0), 0);
+    const completed_tasks = filteredProjects.reduce((sum, p) => sum + (p.tasks_completed || 0), 0);
+    const total_team_members = filteredProjects.reduce((sum, p) => sum + (p.team_members || 0), 0);
+
     const now = new Date();
-    const overdueProjects = filteredProjects.filter(p => 
-      p.status === 'active' && new Date(p.endDate) < now
-    ).length;
-    
-    // Calculate upcoming deadlines (projects ending within 7 days)
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const upcomingDeadlines = filteredProjects.filter(p => 
-      p.status === 'active' && 
-      new Date(p.endDate) >= now && 
-      new Date(p.endDate) <= sevenDaysFromNow
-    ).length;
+    const overdue_tasks = filteredProjects.filter(p => p.end_date && new Date(p.end_date) < now && p.status !== 'completed').length;
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcoming_deadlines = filteredProjects.filter(p => p.end_date && new Date(p.end_date) >= now && new Date(p.end_date) <= sevenDaysFromNow).length;
 
     return {
-      totalProjects,
-      activeProjects,
-      completedProjects,
-      totalTasks,
-      completedTasks,
-      totalTeamMembers,
-      overdueTasks: overdueProjects,
-      upcomingDeadlines
+      total_projects,
+      active_projects,
+      completed_projects,
+      total_tasks,
+      completed_tasks,
+      overdue_tasks,
+      total_team_members,
+      upcoming_deadlines
     };
   }, [filteredProjects]);
 
@@ -461,7 +478,7 @@ export const ProjectsPage: React.FC = () => {
                     onEdit={handleEditProject}
                     onDelete={handleDeleteProject}
                     onCreateSubProject={handleCreateSubProject}
-                    onStatusChange={handleStatusChange}
+                    onStatusChange={(projectId, status) => { void handleStatusChange(projectId, status as Project['status']); }}
                   />
                 ))}
               </div>
@@ -477,33 +494,126 @@ export const ProjectsPage: React.FC = () => {
                     onEdit={handleEditProject}
                     onDelete={handleDeleteProject}
                     onCreateSubProject={handleCreateSubProject}
-                    onStatusChange={handleStatusChange}
+                    onStatusChange={(projectId, status) => { void handleStatusChange(projectId, status as Project['status']); }}
                   />
                 ))}
               </div>
             )}
 
             {viewMode === 'kanban' && (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">看板视图</h3>
-                <p className="text-gray-600">看板视图功能正在开发中...</p>
+              <div className="bg-white rounded-lg border border-gray-200">
+                {/* 看板视图头部：项目选择与创建任务 */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <BarChart3 className="w-5 h-5 text-gray-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">项目看板</h3>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm text-gray-600">选择项目:</label>
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                      >
+                        {filteredProjects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openCreateTask()}
+                    className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>创建任务</span>
+                  </button>
+                </div>
+
+                {/* 看板主体 */}
+                {(!selectedProjectId || tasksLoading) ? (
+                  <div className="p-8 text-center text-gray-600">
+                    {!selectedProjectId ? (
+                      <p>请选择一个项目以查看该项目的看板任务</p>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                        <p>加载任务中...</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    <TaskKanbanBoard
+                      tasks={projectTasks}
+                      onEdit={openEditTask}
+                      onDelete={handleDeleteTask}
+                      onStatusChange={(id, s) => { void handleTaskStatusChange(id, s as Task['status']); }}
+                      onCreateTask={(status) => openCreateTask({ status: status as Task['status'] })}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
             {viewMode === 'gantt' && (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">甘特图</h3>
-                <p className="text-gray-600">甘特图功能正在开发中...</p>
+              <div className="bg-white rounded-lg border border-gray-200">
+                {/* 甘特图视图头部：项目选择与创建任务 */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="w-5 h-5 text-gray-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">项目甘特图</h3>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm text-gray-600">选择项目:</label>
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                      >
+                        {filteredProjects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openCreateTask()}
+                    className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>创建任务</span>
+                  </button>
+                </div>
+
+                {/* 甘特图主体 */}
+                {(!selectedProjectId || tasksLoading) ? (
+                  <div className="p-8 text-center text-gray-600">
+                    {!selectedProjectId ? (
+                      <p>请选择一个项目以查看该项目的甘特图</p>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                        <p>加载任务中...</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    <ProjectGanttChart
+                      tasks={projectTasks}
+                      onEdit={openEditTask}
+                      onCreateTask={(startDate: string, dueDate: string) => openCreateTask({ start_date: startDate, due_date: dueDate })}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
             {viewMode === 'hierarchy' && (
               <ProjectHierarchy 
-                projects={filteredProjects}
-                onProjectSelect={(project) => {
-                  setEditingProject(project);
+                projects={getHierarchyFilteredProjects(projects, filters)}
+                onProjectSelect={(uiProject) => {
+                  const svcProject = projects.find(p => p.id === uiProject.id) || null;
+                  setEditingProject(svcProject);
                   setShowCreateModal(true);
                 }}
               />
@@ -545,6 +655,168 @@ export const ProjectsPage: React.FC = () => {
         editProject={editingProject}
         parentProject={parentProject}
       />
+
+      {/* Create/Edit Task Modal */}
+      <TaskCreateModal
+        isOpen={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
+        onSubmit={handleTaskSubmit}
+        editTask={editingTask}
+        initialValues={taskInitialValues}
+      />
     </div>
   );
+};
+
+// 层级视图项目类型（与 ProjectHierarchy 组件的结构对齐）
+type HierarchyProject = {
+  id: string;
+  name: string;
+  description: string;
+  status: 'planning' | 'active' | 'completed' | 'on-hold' | 'archived';
+  priority: 'low' | 'medium' | 'high';
+  startDate: string;
+  endDate: string;
+  progress: number;
+  teamMembers: number;
+  tags: string[];
+  parentId?: string;
+  children?: HierarchyProject[];
+};
+
+// 统一：将服务端项目映射为层级视图需要的UI形态
+const toHierarchyStatus = (s: Project['status']): 'planning' | 'active' | 'completed' | 'on-hold' | 'archived' => {
+  return s === 'paused' ? 'on-hold' : s;
+};
+
+const toHierarchyProject = (p: Project): HierarchyProject => ({
+  id: p.id,
+  name: p.name,
+  description: p.description || '',
+  status: toHierarchyStatus(p.status),
+  priority: p.priority,
+  startDate: p.start_date || '',
+  endDate: p.end_date || '',
+  progress: p.progress || 0,
+  teamMembers: p.team_members || 0,
+  tags: p.tags || [],
+  parentId: p.parentId || p.parent_id || undefined,
+  children: (p.children || []).map(toHierarchyProject)
+});
+
+// 构建完整层级树（从扁平列表）
+const buildHierarchyTree = (nodes: HierarchyProject[]): HierarchyProject[] => {
+  const map = new Map<string, HierarchyProject>();
+  const roots: HierarchyProject[] = [];
+  nodes.forEach(n => {
+    map.set(n.id, { ...n, children: [] });
+  });
+  nodes.forEach(n => {
+    const cur = map.get(n.id)!;
+    if (cur.parentId && map.has(cur.parentId)) {
+      const parent = map.get(cur.parentId)!;
+      parent.children!.push(cur);
+    } else {
+      roots.push(cur);
+    }
+  });
+  return roots;
+};
+
+// 将筛选映射到层级视图（paused -> on-hold）
+const normalizeHierarchyStatus = (s: string) => (s === 'paused' ? 'on-hold' : s);
+
+// 判断层级节点是否匹配当前筛选
+const matchesFiltersHierarchy = (node: HierarchyProject, filters: ProjectFilters): boolean => {
+  if (filters.search) {
+    const q = filters.search.toLowerCase();
+    const nameHit = node.name.toLowerCase().includes(q);
+    const descHit = (node.description || '').toLowerCase().includes(q);
+    if (!nameHit && !descHit) return false;
+  }
+
+  if (filters.status.length > 0) {
+    const statusSet = new Set(filters.status.map(normalizeHierarchyStatus));
+    if (!statusSet.has(node.status)) return false;
+  }
+
+  if (filters.priority.length > 0) {
+    if (!filters.priority.includes(node.priority)) return false;
+  }
+
+  if (filters.dateRange.start && (!node.startDate || node.startDate < filters.dateRange.start)) return false;
+  if (filters.dateRange.end && (!node.endDate || node.endDate > filters.dateRange.end)) return false;
+
+  // hasSubProjects 按层级结构的 children 判断
+  if (filters.hasSubProjects === true) {
+    // 注意：匹配阶段使用原始 children（未裁剪）
+    // 该函数在构建树之后再调用
+    // 这里的判断将在 prune 前后保持一致
+    // 若无子节点则不匹配
+    // 实际 children 数量在树构建后才准确
+  }
+
+  if (filters.hasSubProjects === false) {
+    // 若有子节点则不匹配
+  }
+
+  // tags：要求至少包含一个选中的标签
+  if (filters.tags.length > 0) {
+    const nodeTags = node.tags || [];
+    const anyTag = filters.tags.some(t => nodeTags.includes(t));
+    if (!anyTag) return false;
+  }
+
+  return true;
+};
+
+// 裁剪树：保留匹配节点及其所有祖先
+const pruneHierarchyTree = (roots: HierarchyProject[], filters: ProjectFilters): HierarchyProject[] => {
+  const pruneNode = (node: HierarchyProject): HierarchyProject | null => {
+    const originalChildren = node.children || [];
+    const prunedChildren: HierarchyProject[] = [];
+    for (const ch of originalChildren) {
+      const pruned = pruneNode(ch);
+      if (pruned) prunedChildren.push(pruned);
+    }
+
+    // 在 children 已构建后再评估 hasSubProjects
+    const withHasSubFilter = () => {
+      if (filters.hasSubProjects === true && (originalChildren.length === 0)) return false;
+      if (filters.hasSubProjects === false && (originalChildren.length > 0)) return false;
+      return true;
+    };
+
+    const selfMatches = matchesFiltersHierarchy(node, filters) && withHasSubFilter();
+    if (selfMatches || prunedChildren.length > 0) {
+      return { ...node, children: prunedChildren };
+    }
+    return null;
+  };
+
+  const result: HierarchyProject[] = [];
+  for (const r of roots) {
+    const pruned = pruneNode(r);
+    if (pruned) result.push(pruned);
+  }
+  return result;
+};
+
+// 将树扁平化为列表以供 ProjectHierarchy 重建（其内部会重构 children）
+const flattenHierarchy = (roots: HierarchyProject[]): HierarchyProject[] => {
+  const out: HierarchyProject[] = [];
+  const visit = (node: HierarchyProject) => {
+    out.push({ ...node, children: [] });
+    (node.children || []).forEach(visit);
+  };
+  roots.forEach(visit);
+  return out;
+};
+
+// 为层级视图提供经裁剪后的列表，确保父子关系正确
+const getHierarchyFilteredProjects = (svcProjects: Project[], filters: ProjectFilters): HierarchyProject[] => {
+  const allNodes = svcProjects.map(toHierarchyProject);
+  const tree = buildHierarchyTree(allNodes);
+  const prunedTree = pruneHierarchyTree(tree, filters);
+  return flattenHierarchy(prunedTree);
 };

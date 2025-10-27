@@ -7,6 +7,8 @@ interface User {
   email: string;
   name?: string;
   avatar?: string;
+  role?: string;
+  permissions?: string[];
 }
 
 interface AuthContextType {
@@ -16,6 +18,8 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: { username: string }) => Promise<void>;
+  hasPermission: (permission: string) => boolean;
+  hasRole: (role: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,6 +79,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(updatedUser);
   };
 
+  const hasPermission = (permission: string): boolean => {
+    // 个人工作台模式：所有权限都返回 true
+    return true;
+  };
+
+  const hasRole = (role: string): boolean => {
+    // 个人工作台模式：所有角色都返回 true
+    return true;
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -82,6 +96,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateProfile,
+    hasPermission,
+    hasRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

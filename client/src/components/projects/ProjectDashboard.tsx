@@ -3,36 +3,25 @@ import {
   BarChart3, 
   TrendingUp, 
   Users, 
-  Calendar, 
-  CheckCircle, 
   Clock, 
   AlertTriangle,
-  Target
+  Target,
+  CheckCircle
 } from 'lucide-react';
-
-interface ProjectStats {
-  totalProjects: number;
-  activeProjects: number;
-  completedProjects: number;
-  totalTasks: number;
-  completedTasks: number;
-  totalTeamMembers: number;
-  overdueTasks: number;
-  upcomingDeadlines: number;
-}
+import { ProjectStats } from '../../services/projectService';
 
 interface ProjectDashboardProps {
   stats: ProjectStats;
 }
 
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => {
-  const completionRate = stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0;
-  const projectCompletionRate = stats.totalProjects > 0 ? (stats.completedProjects / stats.totalProjects) * 100 : 0;
+  const completionRate = stats.total_tasks > 0 ? (stats.completed_tasks / stats.total_tasks) * 100 : 0;
+  const projectCompletionRate = stats.total_projects > 0 ? (stats.completed_projects / stats.total_projects) * 100 : 0;
 
   const statCards = [
     {
       title: '总项目数',
-      value: stats.totalProjects,
+      value: stats.total_projects,
       icon: Target,
       color: 'bg-blue-500',
       textColor: 'text-blue-600',
@@ -40,7 +29,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '进行中项目',
-      value: stats.activeProjects,
+      value: stats.active_projects,
       icon: TrendingUp,
       color: 'bg-green-500',
       textColor: 'text-green-600',
@@ -48,7 +37,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '已完成项目',
-      value: stats.completedProjects,
+      value: stats.completed_projects,
       icon: CheckCircle,
       color: 'bg-purple-500',
       textColor: 'text-purple-600',
@@ -56,7 +45,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '团队成员',
-      value: stats.totalTeamMembers,
+      value: stats.total_team_members,
       icon: Users,
       color: 'bg-indigo-500',
       textColor: 'text-indigo-600',
@@ -64,7 +53,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '总任务数',
-      value: stats.totalTasks,
+      value: stats.total_tasks,
       icon: BarChart3,
       color: 'bg-cyan-500',
       textColor: 'text-cyan-600',
@@ -72,7 +61,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '已完成任务',
-      value: stats.completedTasks,
+      value: stats.completed_tasks,
       icon: CheckCircle,
       color: 'bg-emerald-500',
       textColor: 'text-emerald-600',
@@ -80,7 +69,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '逾期任务',
-      value: stats.overdueTasks,
+      value: stats.overdue_tasks,
       icon: AlertTriangle,
       color: 'bg-red-500',
       textColor: 'text-red-600',
@@ -88,7 +77,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
     },
     {
       title: '即将到期',
-      value: stats.upcomingDeadlines,
+      value: stats.upcoming_deadlines,
       icon: Clock,
       color: 'bg-orange-500',
       textColor: 'text-orange-600',
@@ -129,51 +118,53 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
             <div>
               <div className="flex justify-between text-sm text-gray-600 mb-2">
                 <span>已完成</span>
-                <span>{stats.completedTasks}/{stats.totalTasks}</span>
+                <span>{stats.completed_tasks}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-green-500 h-3 rounded-full transition-all duration-300"
+                  className="bg-green-500 h-2 rounded-full" 
                   style={{ width: `${completionRate}%` }}
                 ></div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-green-600 font-semibold">{stats.completedTasks}</div>
-                <div className="text-gray-600">已完成</div>
+            <div>
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>总任务数</span>
+                <span>{stats.total_tasks}</span>
               </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-gray-600 font-semibold">{stats.totalTasks - stats.completedTasks}</div>
-                <div className="text-gray-600">待完成</div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full" 
+                  style={{ width: `${stats.total_tasks > 0 ? ((stats.total_tasks - stats.completed_tasks) / stats.total_tasks) * 100 : 0}%` }}
+                ></div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 项目状态分布 */}
+        {/* 项目进度 */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">项目状态分布</h3>
-            <span className="text-sm text-gray-500">{projectCompletionRate.toFixed(1)}% 完成</span>
+            <h3 className="text-lg font-semibold text-gray-900">项目进度</h3>
+            <span className="text-sm text-gray-500">{projectCompletionRate.toFixed(1)}%</span>
           </div>
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">进行中</span>
-                <span className="text-sm font-medium">{stats.activeProjects}</span>
+                <span className="text-sm font-medium">{stats.active_projects}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-blue-500 h-2 rounded-full"
-                  style={{ width: `${stats.totalProjects > 0 ? (stats.activeProjects / stats.totalProjects) * 100 : 0}%` }}
+                  style={{ width: `${stats.total_projects > 0 ? (stats.active_projects / stats.total_projects) * 100 : 0}%` }}
                 ></div>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">已完成</span>
-                <span className="text-sm font-medium">{stats.completedProjects}</span>
+                <span className="text-sm font-medium">{stats.completed_projects}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
@@ -185,51 +176,18 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ stats }) => 
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">其他状态</span>
-                <span className="text-sm font-medium">{stats.totalProjects - stats.activeProjects - stats.completedProjects}</span>
+                <span className="text-sm font-medium">{stats.total_projects - stats.active_projects - stats.completed_projects}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-gray-400 h-2 rounded-full"
-                  style={{ width: `${stats.totalProjects > 0 ? ((stats.totalProjects - stats.activeProjects - stats.completedProjects) / stats.totalProjects) * 100 : 0}%` }}
+                  style={{ width: `${stats.total_projects > 0 ? ((stats.total_projects - stats.active_projects - stats.completed_projects) / stats.total_projects) * 100 : 0}%` }}
                 ></div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* 警告和提醒区域 */}
-      {(stats.overdueTasks > 0 || stats.upcomingDeadlines > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {stats.overdueTasks > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <div className="flex items-center">
-                <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />
-                <div>
-                  <h4 className="text-sm font-medium text-red-800">逾期任务提醒</h4>
-                  <p className="text-sm text-red-600 mt-1">
-                    有 {stats.overdueTasks} 个任务已逾期，需要立即处理
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {stats.upcomingDeadlines > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-              <div className="flex items-center">
-                <Clock className="h-5 w-5 text-orange-500 mr-3" />
-                <div>
-                  <h4 className="text-sm font-medium text-orange-800">即将到期</h4>
-                  <p className="text-sm text-orange-600 mt-1">
-                    有 {stats.upcomingDeadlines} 个任务即将到期，请及时关注
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

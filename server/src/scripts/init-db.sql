@@ -1,5 +1,8 @@
 -- 创建数据库表结构
 
+-- 启用 pgcrypto，以支持 gen_random_uuid()
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

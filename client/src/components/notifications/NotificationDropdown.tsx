@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, CheckCheck, X } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Bell, CheckCheck, X } from 'lucide-react';
 import { Notification } from '../../types/notification';
 import { NotificationCard } from './NotificationCard';
 import { useNotificationContext } from '../../contexts/NotificationContext';

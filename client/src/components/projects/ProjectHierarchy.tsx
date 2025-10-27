@@ -6,7 +6,7 @@ interface Project {
   id: string;
   name: string;
   description: string;
-  status: 'planning' | 'active' | 'completed' | 'on-hold';
+  status: 'planning' | 'active' | 'completed' | 'on-hold' | 'archived';
   priority: 'low' | 'medium' | 'high';
   startDate: string;
   endDate: string;
@@ -45,6 +45,7 @@ const ProjectNode: React.FC<ProjectNodeProps> = ({
       case 'active': return 'text-green-600';
       case 'completed': return 'text-gray-600';
       case 'on-hold': return 'text-yellow-600';
+      case 'archived': return 'text-gray-400';
       default: return 'text-gray-600';
     }
   };
