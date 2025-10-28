@@ -11,6 +11,10 @@ export interface ProjectData {
   priority: 'low' | 'medium' | 'high';
   start_date?: Date;
   end_date?: Date;
+  // 统计字段（可选）
+  task_count?: number;
+  tasks_completed?: number;
+  progress?: number;
   tags?: string[];
   created_at: Date;
   updated_at: Date;
@@ -36,6 +40,7 @@ export interface UpdateProjectData {
   priority?: 'low' | 'medium' | 'high';
   start_date?: Date;
   end_date?: Date;
+  progress?: number;
   tags?: string[];
 }
 
@@ -56,14 +61,23 @@ export class ProjectModel {
       priority,
       parent_id,
       search,
-      limit = 20,
+      limit = 50,
       offset = 0
     } = filters;
 
     let query = `
       SELECT p.*, 
              COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count
+             COUNT(t.id) as task_count,
+             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed,
+             COALESCE(
+               CASE 
+                 WHEN COUNT(t.id) = 0 THEN 0
+                 ELSE ROUND(
+                   (COUNT(CASE WHEN t.status = 'completed' THEN 1 END) * 100.0 / COUNT(t.id))::numeric, 2
+                 )
+               END, 0
+             ) as progress
       FROM projects p
       LEFT JOIN project_members pm ON p.id = pm.project_id
       LEFT JOIN tasks t ON p.id = t.project_id
@@ -119,7 +133,16 @@ export class ProjectModel {
     const query = `
       SELECT p.*, 
              COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count
+             COUNT(t.id) as task_count,
+             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed,
+             COALESCE(
+               CASE 
+                 WHEN COUNT(t.id) = 0 THEN 0
+                 ELSE ROUND(
+                   (COUNT(CASE WHEN t.status = 'completed' THEN 1 END) * 100.0 / COUNT(t.id))::numeric, 2
+                 )
+               END, 0
+             ) as progress
       FROM projects p
       LEFT JOIN project_members pm ON p.id = pm.project_id
       LEFT JOIN tasks t ON p.id = t.project_id
@@ -239,7 +262,8 @@ export class ProjectModel {
     const query = `
       SELECT p.*, 
              COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count
+             COUNT(t.id) as task_count,
+             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed
       FROM projects p
       LEFT JOIN project_members pm ON p.id = pm.project_id
       LEFT JOIN tasks t ON p.id = t.project_id

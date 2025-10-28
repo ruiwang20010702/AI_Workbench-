@@ -7,7 +7,8 @@ import {
   Plus,
   Sparkles,
   Home,
-  FolderKanban
+  FolderKanban,
+  Activity
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 

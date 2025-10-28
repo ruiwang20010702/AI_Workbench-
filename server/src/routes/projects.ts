@@ -36,6 +36,15 @@ const router = express.Router();
 // 所有路由都需要认证
 router.use(authenticateToken);
 
+// 任务相关路由（需要放在项目路由之前，避免路由冲突）
+router.get('/tasks', getTasks);                        // 获取任务列表（支持按 project_id 过滤）
+router.get('/tasks/stats', getTaskStats);               // 获取任务统计信息
+router.get('/tasks/tags', getTaskTags);                 // 获取任务标签
+router.put('/tasks/batch/status', batchUpdateTaskStatus); // 批量更新任务状态
+router.get('/tasks/:id', getTask);                      // 获取单个任务详情
+router.put('/tasks/:id', updateTask);                   // 更新任务
+router.delete('/tasks/:id', deleteTask);                // 删除任务
+
 // 项目相关路由
 router.get('/', getProjects);                           // 获取用户的项目列表
 router.post('/', createProject);                        // 创建新项目
@@ -58,14 +67,8 @@ router.get('/:project_id/members/recent', getRecentMembers);              // 获
 // 用户项目相关路由
 router.get('/user/projects', getUserProjects);          // 获取用户参与的项目列表
 
-// 任务相关路由
+// 项目任务相关路由
 router.get('/:project_id/tasks', getTasks);             // 获取项目任务列表
 router.post('/:project_id/tasks', createTask);          // 创建新任务
-router.get('/tasks/:id', getTask);                      // 获取单个任务详情
-router.put('/tasks/:id', updateTask);                   // 更新任务
-router.delete('/tasks/:id', deleteTask);                // 删除任务
-router.get('/tasks/stats', getTaskStats);               // 获取任务统计信息
-router.get('/tasks/tags', getTaskTags);                 // 获取任务标签
-router.put('/tasks/batch/status', batchUpdateTaskStatus); // 批量更新任务状态
 
 export default router;

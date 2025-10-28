@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Grid3X3, List, Calendar, BarChart3, PieChart, TreePine } from 'lucide-react';
+import { Plus, Calendar, BarChart3, PieChart, TreePine } from 'lucide-react';
 import { cn } from '../utils/cn';
-import { ProjectCard } from '../components/projects/ProjectCard';
 import { ProjectCreateModal } from '../components/projects/ProjectCreateModal';
 import { ProjectFilters } from '../components/projects/ProjectFilters';
 import { ProjectDashboard } from '../components/projects/ProjectDashboard';
+import { ProjectProgressChart } from '../components/dashboard/ProjectProgressChart';
+import { RecentActivity } from '../components/dashboard/RecentActivity';
+import { TeamPerformance } from '../components/dashboard/TeamPerformance';
 import { ProjectHierarchy } from '../components/projects/ProjectHierarchy';
 import { 
   Project, 
@@ -12,12 +14,12 @@ import {
   ProjectStats,
   projectService 
 } from '../services/projectService';
-import taskService, { CreateTaskRequest, type Task } from '../services/taskService';
+import taskService, { CreateTaskRequest, type Task, type TaskStats } from '../services/taskService';
 import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import { TaskKanbanBoard } from '../components/tasks/TaskKanbanBoard';
 import { ProjectGanttChart } from '../components/projects/ProjectGanttChart.tsx';
 
-type ViewMode = 'dashboard' | 'grid' | 'list' | 'kanban' | 'gantt' | 'hierarchy';
+type ViewMode = 'dashboard' | 'kanban' | 'gantt' | 'hierarchy';
 
 interface ProjectFilters {
   search: string;
@@ -44,6 +46,8 @@ export const ProjectsPage: React.FC = () => {
   // 选中项目的任务
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  // 全局任务统计（用于仪表盘中的“即将到期”等）
+  const [taskStats, setTaskStats] = useState<TaskStats | null>(null);
 
   // 任务弹窗
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -71,6 +75,28 @@ export const ProjectsPage: React.FC = () => {
     loadProjects();
   }, [filters]);
 
+  // 加载任务统计（全局，不按项目过滤）
+  useEffect(() => {
+    const loadTaskStats = async () => {
+      try {
+        const stats = await taskService.getTaskStats();
+        setTaskStats(stats);
+      } catch (err) {
+        console.error('加载任务统计失败:', err);
+      }
+    };
+    void loadTaskStats();
+  }, []);
+
+  // 在任务有变更时刷新统计
+  const refreshTaskStats = async () => {
+    try {
+      const stats = await taskService.getTaskStats();
+      setTaskStats(stats);
+    } catch (err) {
+      console.error('刷新任务统计失败:', err);
+    }
+  };
 
 
   const loadProjects = async () => {
@@ -95,8 +121,6 @@ export const ProjectsPage: React.FC = () => {
 
   const viewModeOptions = [
     { mode: 'dashboard' as ViewMode, icon: PieChart, label: '仪表盘' },
-    { mode: 'grid' as ViewMode, icon: Grid3X3, label: '网格视图' },
-    { mode: 'list' as ViewMode, icon: List, label: '列表视图' },
     { mode: 'kanban' as ViewMode, icon: BarChart3, label: '看板视图' },
     { mode: 'gantt' as ViewMode, icon: Calendar, label: '甘特图' },
     { mode: 'hierarchy' as ViewMode, icon: TreePine, label: '层级视图' }
@@ -169,6 +193,7 @@ export const ProjectsPage: React.FC = () => {
       try {
         await taskService.deleteTask(taskId);
         setProjectTasks(prev => prev.filter(t => t.id !== taskId));
+        void refreshTaskStats();
       } catch (error) {
         console.error('删除任务失败:', error);
         alert('删除任务失败，请稍后重试');
@@ -180,6 +205,7 @@ export const ProjectsPage: React.FC = () => {
     try {
       await taskService.updateTask(taskId, { status });
       setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
+      void refreshTaskStats();
     } catch (error) {
       console.error('更新任务状态失败:', error);
       alert('更新任务状态失败，请稍后重试');
@@ -198,9 +224,12 @@ export const ProjectsPage: React.FC = () => {
       setShowTaskModal(false);
       setEditingTask(null);
       setTaskInitialValues(undefined);
+      void refreshTaskStats();
     } catch (error) {
       console.error('保存任务失败:', error);
-      alert('保存任务失败，请稍后重试');
+      const err: any = error;
+      const serverMsg = err?.response?.data?.error || err?.response?.data?.detail;
+      alert(serverMsg ? `保存任务失败：${serverMsg}` : '保存任务失败，请稍后重试');
     }
   };
 
@@ -383,9 +412,10 @@ export const ProjectsPage: React.FC = () => {
     const total_team_members = filteredProjects.reduce((sum, p) => sum + (p.team_members || 0), 0);
 
     const now = new Date();
-    const overdue_tasks = filteredProjects.filter(p => p.end_date && new Date(p.end_date) < now && p.status !== 'completed').length;
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const upcoming_deadlines = filteredProjects.filter(p => p.end_date && new Date(p.end_date) >= now && new Date(p.end_date) <= sevenDaysFromNow).length;
+    // 逾期任务改为使用服务端任务统计，按未完成且已逾期的任务口径
+    const overdue_tasks = taskStats?.overdue_tasks ?? 0;
+    // 使用服务端任务统计的“即将到期”数据，避免仅按项目结束日期统计导致为0
+    const upcoming_deadlines = taskStats?.upcoming_deadlines ?? 0;
 
     return {
       total_projects,
@@ -397,7 +427,47 @@ export const ProjectsPage: React.FC = () => {
       total_team_members,
       upcoming_deadlines
     };
+  }, [filteredProjects, taskStats]);
+
+  // 仪表盘扩展所需的派生数据
+  const recentProjects = useMemo(() => {
+    const mapStatus = (s: Project['status']): 'active' | 'completed' | 'on_hold' => {
+      if (s === 'completed') return 'completed';
+      if (s === 'paused') return 'on_hold';
+      return 'active';
+    };
+    return filteredProjects.map(p => ({
+      name: p.name,
+      progress: p.progress || Math.round(((p.tasks_completed || 0) / Math.max(p.tasks_total || 0, 1)) * 100),
+      status: mapStatus(p.status),
+      dueDate: p.end_date,
+      tasksCompleted: p.tasks_completed || 0,
+      tasksTotal: p.tasks_total || 0,
+    }));
   }, [filteredProjects]);
+
+  const activities = useMemo(() => {
+    // 简单根据项目生成最近活动占位数据；真实项目可改为从后端获取
+    const now = Date.now();
+    return filteredProjects.slice(0, 5).map((p, idx) => ({
+      id: `${p.id}-activity-${idx}`,
+      type: 'project_updated' as const,
+      title: `更新项目：${p.name}`,
+      description: `项目状态更新为 ${p.status}`,
+      user: '系统',
+      timestamp: new Date(now - idx * 60 * 60 * 1000).toISOString(),
+      metadata: { projectName: p.name }
+    }));
+  }, [filteredProjects]);
+
+  const teamMembers = useMemo(() => {
+    // 占位的团队绩效数据；后续可改为按项目成员真实统计
+    return [
+      { id: '1', name: '张三', role: '前端开发', tasksCompleted: 15, tasksTotal: 18, hoursWorked: 160, efficiency: 92, projects: ['项目A', '项目B'] },
+      { id: '2', name: '李四', role: '后端开发', tasksCompleted: 12, tasksTotal: 15, hoursWorked: 145, efficiency: 88, projects: ['项目B', '项目C'] },
+      { id: '3', name: '王五', role: '产品经理', tasksCompleted: 10, tasksTotal: 12, hoursWorked: 130, efficiency: 85, projects: ['项目A'] },
+    ];
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -464,41 +534,43 @@ export const ProjectsPage: React.FC = () => {
 
             {/* Dashboard View */}
             {viewMode === 'dashboard' && (
-              <ProjectDashboard stats={projectStats} />
+              <>
+                {/* 顶部项目统计卡片（保留现有 ProjectDashboard） */}
+                <ProjectDashboard stats={projectStats} />
+
+                
+
+                {/* 主内容：项目进度图 + 最近活动 */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
+                  <div className="lg:col-span-2">
+                    <ProjectProgressChart
+                      projects={recentProjects}
+                      title="项目进度概览"
+                      showDetails={true}
+                      className="h-full"
+                    />
+                  </div>
+                  <div>
+                    <RecentActivity
+                      activities={activities}
+                      title="最近活动"
+                      maxItems={2}
+                      className="h-full"
+                    />
+                  </div>
+                </div>
+
+                {/* 团队绩效 */}
+                <div className="mt-6">
+                  <TeamPerformance
+                    teamMembers={teamMembers}
+                    title="团队绩效概览"
+                  />
+                </div>
+              </>
             )}
 
-            {/* Projects Grid/List */}
-            {viewMode === 'grid' && (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {filteredProjects.map((project) => (
-                  <ProjectCard 
-                    key={project.id} 
-                    project={project} 
-                    viewMode={viewMode}
-                    onEdit={handleEditProject}
-                    onDelete={handleDeleteProject}
-                    onCreateSubProject={handleCreateSubProject}
-                    onStatusChange={(projectId, status) => { void handleStatusChange(projectId, status as Project['status']); }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {viewMode === 'list' && (
-              <div className="space-y-4">
-                {filteredProjects.map((project) => (
-                  <ProjectCard 
-                    key={project.id} 
-                    project={project} 
-                    viewMode={viewMode}
-                    onEdit={handleEditProject}
-                    onDelete={handleDeleteProject}
-                    onCreateSubProject={handleCreateSubProject}
-                    onStatusChange={(projectId, status) => { void handleStatusChange(projectId, status as Project['status']); }}
-                  />
-                ))}
-              </div>
-            )}
+            {/* 已移除网格/列表视图 */}
 
             {viewMode === 'kanban' && (
               <div className="bg-white rounded-lg border border-gray-200">
@@ -679,6 +751,8 @@ type HierarchyProject = {
   endDate: string;
   progress: number;
   teamMembers: number;
+  tasksTotal?: number;
+  tasksCompleted?: number;
   tags: string[];
   parentId?: string;
   children?: HierarchyProject[];
@@ -699,6 +773,8 @@ const toHierarchyProject = (p: Project): HierarchyProject => ({
   endDate: p.end_date || '',
   progress: p.progress || 0,
   teamMembers: p.team_members || 0,
+  tasksTotal: p.tasks_total || p.tasksTotal || 0,
+  tasksCompleted: p.tasks_completed || p.tasksCompleted || 0,
   tags: p.tags || [],
   parentId: p.parentId || p.parent_id || undefined,
   children: (p.children || []).map(toHierarchyProject)

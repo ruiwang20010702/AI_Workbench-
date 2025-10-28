@@ -32,7 +32,9 @@ export const TasksPage: React.FC = () => {
     completed_tasks: 0,
     in_progress_tasks: 0,
     todo_tasks: 0,
+    cancelled_tasks: 0,
     overdue_tasks: 0,
+    upcoming_deadlines: 0,
     high_priority_tasks: 0,
     medium_priority_tasks: 0,
     low_priority_tasks: 0
@@ -149,7 +151,9 @@ export const TasksPage: React.FC = () => {
       await loadStats();
     } catch (error) {
       console.error('保存任务失败:', error);
-      alert('保存任务失败，请稍后重试');
+      const err: any = error;
+      const serverMsg = err?.response?.data?.error || err?.response?.data?.detail;
+      alert(serverMsg ? `保存任务失败：${serverMsg}` : '保存任务失败，请稍后重试');
     }
   };
 

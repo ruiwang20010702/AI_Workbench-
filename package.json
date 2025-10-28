@@ -11,10 +11,19 @@
     "start": "cd server && npm start",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install"
   },
-  "keywords": ["ai", "notes", "react", "nodejs", "typescript"],
+  "keywords": [
+    "ai",
+    "notes",
+    "react",
+    "nodejs",
+    "typescript"
+  ],
   "author": "AI Workbench",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.56.1"
   }
 }

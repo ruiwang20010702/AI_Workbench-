@@ -15,12 +15,14 @@ interface ProjectProgressChartProps {
   projects: ProjectProgressData[];
   title?: string;
   showDetails?: boolean;
+  className?: string;
 }
 
 export const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({
   projects,
   title = "项目进度概览",
-  showDetails = true
+  showDetails = true,
+  className
 }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -64,7 +66,7 @@ export const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({
   const sortedProjects = [...projects].sort((a, b) => b.progress - a.progress);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className={cn("bg-white rounded-lg border border-gray-200 p-6", className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">

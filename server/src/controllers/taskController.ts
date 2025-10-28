@@ -1,40 +1,38 @@
 import { Request, Response } from 'express';
 import { TaskModel } from '../models/Task';
 
-// 状态/优先级中英文映射（模块级复用）
-const mapTaskStatus = (value?: string): '待办' | '进行中' | '已完成' | '已取消' | undefined => {
+// 状态/优先级映射：统一为英文，兼容中文输入
+const mapTaskStatus = (value?: string): 'todo' | 'in_progress' | 'completed' | 'cancelled' | undefined => {
   switch (value) {
     case 'todo':
     case 'pending':
-      return '待办';
-    case 'in_progress':
-      return '进行中';
-    case 'completed':
-      return '已完成';
-    case 'cancelled':
-      return '已取消';
     case '待办':
+      return 'todo';
+    case 'in_progress':
     case '进行中':
+      return 'in_progress';
+    case 'completed':
     case '已完成':
+      return 'completed';
+    case 'cancelled':
     case '已取消':
-      return value as any;
+      return 'cancelled';
     default:
       return undefined;
   }
 };
 
-const mapTaskPriority = (value?: string): '低' | '中' | '高' | undefined => {
+const mapTaskPriority = (value?: string): 'low' | 'medium' | 'high' | undefined => {
   switch (value) {
     case 'low':
-      return '低';
-    case 'medium':
-      return '中';
-    case 'high':
-      return '高';
     case '低':
+      return 'low';
+    case 'medium':
     case '中':
+      return 'medium';
+    case 'high':
     case '高':
-      return value as any;
+      return 'high';
     default:
       return undefined;
   }
@@ -114,6 +112,13 @@ export const getTask = async (req: Request, res: Response): Promise<Response> =>
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // 特殊处理：如果ID是stats，调用统计接口
+    if (id === 'stats') {
+      console.log('Redirecting to getTaskStats from getTask');
+      return getTaskStats(req, res);
+    }
+
+    console.log(`Looking for task with ID: ${id}`);
     const task = await TaskModel.findById(id as string, userId);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -157,6 +162,16 @@ export const createTask = async (req: Request, res: Response): Promise<Response>
       return res.status(400).json({ error: 'Title and project_id are required' });
     }
 
+    // 校验 UUID 格式，提前返回更明确的错误
+    if (!/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/.test(String(project_id))) {
+      return res.status(400).json({ error: 'Invalid project_id format. Expect UUID.' });
+    }
+
+    // 如果提供了负责人ID，则校验其为有效 UUID，避免数据库层报错
+    if (assignee_id && !/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/.test(String(assignee_id))) {
+      return res.status(400).json({ error: 'Invalid assignee_id format. Expect UUID.' });
+    }
+
     // 个人工作台模式：跳过权限检查
     // const hasPermission = await ProjectMemberModel.checkPermission(project_id, userId, 'create_task');
     // if (!hasPermission) {
@@ -177,8 +192,8 @@ export const createTask = async (req: Request, res: Response): Promise<Response>
       project_id,
       assignee_id,
       creator_id: userId,
-      status: mapTaskStatus(status) ?? '待办',
-      priority: mapTaskPriority(priority) ?? '中',
+      status: mapTaskStatus(status) ?? 'todo',
+      priority: mapTaskPriority(priority) ?? 'medium',
       start_date,
       due_date,
       tags: tagsArray,
@@ -230,6 +245,11 @@ export const updateTask = async (req: Request, res: Response): Promise<Response>
       actual_hours
     } = req.body;
 
+    // 当更新包含负责人ID时，校验其为有效 UUID
+    if (assignee_id !== undefined && assignee_id !== null && assignee_id !== '' && !/^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/.test(String(assignee_id))) {
+      return res.status(400).json({ error: 'Invalid assignee_id format. Expect UUID.' });
+    }
+
     // 兼容 tags 为数组或逗号分隔字符串；允许 undefined 表示不更新
     const updateTags =
       tags === undefined
@@ -242,18 +262,26 @@ export const updateTask = async (req: Request, res: Response): Promise<Response>
 
     // exactOptionalPropertyTypes 为 true 时，不能显式传入 undefined。
     // 仅在值不为 undefined 时才加入对应字段。
+    const mappedStatus = status !== undefined ? mapTaskStatus(status) : undefined;
+    const mappedPriority = priority !== undefined ? mapTaskPriority(priority) : undefined;
+    
     const updateData = {
       ...(title !== undefined ? { title } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(assignee_id !== undefined ? { assignee_id } : {}),
-      ...(status !== undefined ? { status: mapTaskStatus(status) } : {}),
-      ...(priority !== undefined ? { priority: mapTaskPriority(priority) } : {}),
+      ...(mappedStatus !== undefined ? { status: mappedStatus } : {}),
+      ...(mappedPriority !== undefined ? { priority: mappedPriority } : {}),
       ...(start_date !== undefined ? { start_date } : {}),
       ...(due_date !== undefined ? { due_date } : {}),
       ...(updateTags !== undefined ? { tags: updateTags } : {}),
       ...(estimated_hours !== undefined ? { estimated_hours } : {}),
       ...(actual_hours !== undefined ? { actual_hours } : {}),
     } as import('../models/Task').UpdateTaskData;
+
+    // 如果没有任何字段需要更新，返回错误
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
 
     const updatedTask = await TaskModel.update(id as string, updateData, userId);
     return res.json(updatedTask);
@@ -301,6 +329,7 @@ export const deleteTask = async (req: Request, res: Response): Promise<Response>
 // 获取任务统计信息
 export const getTaskStats = async (req: Request, res: Response): Promise<Response> => {
   try {
+    console.log('getTaskStats called');
     const userId = req.user?.id;
     const { project_id } = req.query;
 
@@ -320,6 +349,7 @@ export const getTaskStats = async (req: Request, res: Response): Promise<Respons
       stats = await TaskModel.getStatistics(userId);
     }
 
+    console.log('Task stats result:', stats);
     return res.json(stats);
   } catch (error) {
     console.error('Error fetching task stats:', error);
@@ -386,7 +416,7 @@ export const batchUpdateTaskStatus = async (req: Request, res: Response): Promis
       }
     }
 
-    const result = await TaskModel.batchUpdateStatus(task_ids, status, userId);
+    const result = await TaskModel.batchUpdateStatus(task_ids, mapTaskStatus(status) ?? 'todo', userId);
     return res.json({ message: 'Tasks updated successfully', updated_count: result.length });
   } catch (error) {
     console.error('Error batch updating tasks:', error);

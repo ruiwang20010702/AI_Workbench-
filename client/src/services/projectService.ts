@@ -214,6 +214,7 @@ class ProjectService {
       ...p,
       team_members: toInt(p.team_members ?? p.member_count),
       tasks_total: toInt(p.tasks_total ?? p.task_count),
+      tasks_completed: toInt(p.tasks_completed),
       start_date: toDate(p.start_date),
       end_date: toDate(p.end_date),
     }));
@@ -233,6 +234,7 @@ class ProjectService {
       ...p,
       team_members: toInt(p.team_members ?? p.member_count),
       tasks_total: toInt(p.tasks_total ?? p.task_count),
+      tasks_completed: toInt(p.tasks_completed),
       start_date: toDate(p.start_date),
       end_date: toDate(p.end_date),
     } as Project;

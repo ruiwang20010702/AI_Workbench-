@@ -7,6 +7,13 @@
   html {
     scroll-behavior: smooth;
   }
+  /* 让应用以视口高度运行，并禁用页面级滚动，仅保留内容区滚动 */
+  html, body, #root {
+    height: 100%;
+  }
+  html, body {
+    overflow: hidden;
+  }
   
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

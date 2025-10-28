@@ -1,43 +1,46 @@
 import { TaskModel, TaskData as ModelTaskData, CreateTaskData as ModelCreateTaskData, UpdateTaskData as ModelUpdateTaskData } from '../models/Task';
 import { ProjectMemberModel } from '../models/ProjectMember';
 
-// 英文到中文的状态/优先级映射
+// 状态/优先级映射：统一为英文，兼容中文输入
 type EnglishTaskStatus = 'todo' | 'in_progress' | 'completed' | 'cancelled' | 'pending';
-type EnglishTaskPriority = 'low' | 'medium' | 'high';
+type ChineseTaskStatus = '待办' | '进行中' | '已完成' | '已取消';
+type TaskStatusInput = EnglishTaskStatus | ChineseTaskStatus;
 
-const mapTaskStatus = (value?: EnglishTaskStatus | ModelCreateTaskData['status']): ModelCreateTaskData['status'] | undefined => {
+type EnglishTaskPriority = 'low' | 'medium' | 'high';
+type ChineseTaskPriority = '低' | '中' | '高';
+type TaskPriorityInput = EnglishTaskPriority | ChineseTaskPriority;
+
+const mapTaskStatus = (value?: TaskStatusInput | ModelCreateTaskData['status']): ModelCreateTaskData['status'] | undefined => {
   switch (value) {
     case 'todo':
     case 'pending':
-      return '待办';
-    case 'in_progress':
-      return '进行中';
-    case 'completed':
-      return '已完成';
-    case 'cancelled':
-      return '已取消';
     case '待办':
+      return 'todo';
+    case 'in_progress':
     case '进行中':
+      return 'in_progress';
+    case 'completed':
     case '已完成':
+      return 'completed';
+    case 'cancelled':
     case '已取消':
-      return value;
+      return 'cancelled';
     default:
       return undefined;
   }
 };
 
-const mapTaskPriority = (value?: EnglishTaskPriority | ModelCreateTaskData['priority']): ModelCreateTaskData['priority'] | undefined => {
+const mapTaskPriority = (value?: TaskPriorityInput | ModelCreateTaskData['priority']): ModelCreateTaskData['priority'] | undefined => {
   switch (value) {
     case 'low':
-      return '低';
-    case 'medium':
-      return '中';
-    case 'high':
-      return '高';
     case '低':
+      return 'low';
+    case 'medium':
     case '中':
+      return 'medium';
+    case 'high':
     case '高':
-      return value;
+      return 'high';
     default:
       return undefined;
   }
@@ -45,13 +48,13 @@ const mapTaskPriority = (value?: EnglishTaskPriority | ModelCreateTaskData['prio
 
 // Service 入参类型，兼容英文与中文枚举
 export type ServiceCreateTaskData = Omit<ModelCreateTaskData, 'status' | 'priority'> & {
-  status?: EnglishTaskStatus | ModelCreateTaskData['status'];
-  priority?: EnglishTaskPriority | ModelCreateTaskData['priority'];
+  status?: TaskStatusInput | ModelCreateTaskData['status'];
+  priority?: TaskPriorityInput | ModelCreateTaskData['priority'];
 };
 
 export type ServiceUpdateTaskData = Omit<ModelUpdateTaskData, 'status' | 'priority'> & {
-  status?: EnglishTaskStatus | ModelUpdateTaskData['status'];
-  priority?: EnglishTaskPriority | ModelUpdateTaskData['priority'];
+  status?: TaskStatusInput | ModelUpdateTaskData['status'];
+  priority?: TaskPriorityInput | ModelUpdateTaskData['priority'];
 };
 
 export class TaskService {
@@ -68,10 +71,10 @@ export class TaskService {
     //   throw new Error('没有权限在该项目中创建任务');
     // }
 
-    const payload: ModelCreateTaskData = {
+  const payload: ModelCreateTaskData = {
       ...taskData,
-      status: mapTaskStatus(taskData.status) ?? '待办',
-      priority: mapTaskPriority(taskData.priority) ?? '中'
+      status: mapTaskStatus(taskData.status) ?? 'todo',
+      priority: mapTaskPriority(taskData.priority) ?? 'medium'
     };
 
     return await TaskModel.create(payload);
@@ -160,7 +163,7 @@ export class TaskService {
     //   }
     // }
 
-    await TaskModel.batchUpdateStatus(taskIds, mapTaskStatus(status) ?? '待办', userId);
+    await TaskModel.batchUpdateStatus(taskIds, mapTaskStatus(status) ?? 'todo', userId);
     return true;
   }
 

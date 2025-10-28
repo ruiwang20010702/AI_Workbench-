@@ -68,8 +68,24 @@ export class AuthController {
         });
       }
 
+      // 防御性检查：旧数据或异常数据导致密码哈希无效时，直接返回401而不是500
+      if (!user.password_hash || typeof user.password_hash !== 'string' || !user.password_hash.startsWith('$2')) {
+        console.warn('登录失败：用户密码哈希无效', { userId: user.id });
+        return res.status(401).json({
+          success: false,
+          message: '邮箱或密码错误'
+        });
+      }
+
       // 验证密码
-      const isPasswordValid = await comparePassword(password, user.password_hash);
+      let isPasswordValid = false;
+      try {
+        isPasswordValid = await comparePassword(password, user.password_hash);
+      } catch (err) {
+        // 兼容 bcrypt 抛错（如非法salt/空哈希），统一视为认证失败
+        console.warn('登录失败：密码校验异常', { userId: user.id, error: (err as any)?.message });
+        isPasswordValid = false;
+      }
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,

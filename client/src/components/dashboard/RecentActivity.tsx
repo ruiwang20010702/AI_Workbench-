@@ -21,12 +21,14 @@ interface RecentActivityProps {
   activities: Activity[];
   title?: string;
   maxItems?: number;
+  className?: string;
 }
 
 export const RecentActivity: React.FC<RecentActivityProps> = ({
   activities,
   title = "最近活动",
-  maxItems = 10
+  maxItems = 10,
+  className
 }) => {
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -105,7 +107,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
   const displayActivities = activities.slice(0, maxItems);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className={cn("bg-white rounded-lg border border-gray-200 p-6", className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
@@ -113,7 +115,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
         </div>
         <span className="text-sm text-gray-500">
-          {activities.length} 条活动
+          {displayActivities.length} 条活动
         </span>
       </div>
 
@@ -220,13 +222,13 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-lg font-bold text-blue-600">
+              <p className="text-2xl font-bold text-blue-600">
                 {activities.filter(a => a.type.includes('task')).length}
               </p>
               <p className="text-xs text-gray-500">任务相关</p>
             </div>
             <div>
-              <p className="text-lg font-bold text-purple-600">
+              <p className="text-2xl font-bold text-purple-600">
                 {activities.filter(a => a.type.includes('project')).length}
               </p>
               <p className="text-xs text-gray-500">项目相关</p>

@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import pool from '../config/database';
+import { ProjectProgressUpdater } from './ProjectProgressUpdater';
 
 export interface TaskData {
   id: string;
@@ -8,8 +9,8 @@ export interface TaskData {
   project_id: string;
   assignee_id?: string;
   creator_id: string;
-  status: '待办' | '进行中' | '已完成' | '已取消';
-  priority: '低' | '中' | '高';
+  status: 'todo' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high';
   start_date?: Date;
   due_date?: Date;
   estimated_hours?: number;
@@ -26,8 +27,8 @@ export interface CreateTaskData {
   project_id: string;
   assignee_id?: string;
   creator_id: string;
-  status?: '待办' | '进行中' | '已完成' | '已取消';
-  priority?: '低' | '中' | '高';
+  status?: 'todo' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
   start_date?: Date;
   due_date?: Date;
   estimated_hours?: number;
@@ -39,8 +40,8 @@ export interface UpdateTaskData {
   title?: string;
   description?: string;
   assignee_id?: string;
-  status?: '待办' | '进行中' | '已完成' | '已取消';
-  priority?: '低' | '中' | '高';
+  status?: 'todo' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
   start_date?: Date;
   due_date?: Date;
   estimated_hours?: number;
@@ -52,8 +53,8 @@ export interface UpdateTaskData {
 export interface TaskFilters {
   project_id?: string;
   assignee_id?: string;
-  status?: '待办' | '进行中' | '已完成' | '已取消';
-  priority?: '低' | '中' | '高';
+  status?: 'todo' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   search?: string;
   overdue?: boolean;
@@ -84,8 +85,8 @@ export class TaskModel {
     let query = `
       SELECT t.*, 
              p.name as project_name,
-             u.username as assignee_name,
-             c.username as creator_name
+             u.display_name as assignee_name,
+             c.display_name as creator_name
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users u ON t.assignee_id = u.id
@@ -133,7 +134,7 @@ export class TaskModel {
     }
 
     if (overdue) {
-      query += ` AND t.due_date < NOW() AND t.status != '已完成'`;
+      query += ` AND t.due_date < NOW() AND t.status != 'completed'`;
     }
 
     query += ` ORDER BY t.${sortBy} ${sortOrder}`;
@@ -160,8 +161,8 @@ export class TaskModel {
     const query = `
       SELECT t.*, 
              p.name as project_name,
-             u.username as assignee_name,
-             c.username as creator_name
+             u.display_name as assignee_name,
+             c.display_name as creator_name
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users u ON t.assignee_id = u.id
@@ -181,8 +182,8 @@ export class TaskModel {
       project_id,
       assignee_id,
       creator_id,
-      status = '待办',
-      priority = '中',
+      status = 'todo',
+      priority = 'medium',
       start_date,
       due_date,
       estimated_hours,
@@ -214,7 +215,12 @@ export class TaskModel {
       dependencies
     ]);
 
-    return result.rows[0];
+    const newTask = result.rows[0];
+    
+    // 创建任务后更新项目进度
+    await ProjectProgressUpdater.onTaskStatusChanged(project_id);
+
+    return newTask;
   }
 
   // 更新任务
@@ -247,11 +253,23 @@ export class TaskModel {
 
     values.push(id);
     const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    const updatedTask = result.rows[0];
+    
+    // 如果任务状态发生变化，更新项目进度
+    if (updatedTask && updateData.status) {
+      await ProjectProgressUpdater.onTaskStatusChanged(updatedTask.project_id);
+    }
+    
+    return updatedTask || null;
   }
 
   // 删除任务
   static async delete(id: string, userId: string): Promise<boolean> {
+    // 先获取任务信息以获得项目ID
+    const taskQuery = `SELECT project_id FROM tasks WHERE id = $1`;
+    const taskResult = await pool.query(taskQuery, [id]);
+    const projectId = taskResult.rows[0]?.project_id;
+    
     // 个人工作台模式：移除权限检查
     const query = `
       DELETE FROM tasks 
@@ -259,31 +277,43 @@ export class TaskModel {
     `;
     
     const result = await pool.query(query, [id]);
-    return (result.rowCount ?? 0) > 0;
+    const deleted = (result.rowCount ?? 0) > 0;
+    
+    // 如果删除成功且有项目ID，更新项目进度
+    if (deleted && projectId) {
+      await ProjectProgressUpdater.onTaskStatusChanged(projectId);
+    }
+    
+    return deleted;
   }
 
   // 获取任务统计信息
   static async getStatistics(userId: string, projectId?: string): Promise<any> {
-    // 个人工作台模式：简化权限检查，允许访问所有任务统计
+    // 个人工作台模式：统计仅限于当前用户相关任务（创建者或被分配者）
+    // 这样可避免统计到其他用户的示例/测试任务导致仪表盘数量不符
     let query = `
       SELECT 
         COUNT(*) as total_tasks,
-        COUNT(CASE WHEN status = '待办' THEN 1 END) as todo_tasks,
-        COUNT(CASE WHEN status = '进行中' THEN 1 END) as in_progress_tasks,
-        COUNT(CASE WHEN status = '已完成' THEN 1 END) as completed_tasks,
-        COUNT(CASE WHEN priority = '高' THEN 1 END) as high_priority_tasks,
-        COUNT(CASE WHEN due_date < NOW() AND status != '已完成' THEN 1 END) as overdue_tasks
+        COUNT(CASE WHEN status = 'todo' THEN 1 END) as todo_tasks,
+        COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress_tasks,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_tasks,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_tasks,
+        COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority_tasks,
+        COUNT(CASE WHEN priority = 'medium' THEN 1 END) as medium_priority_tasks,
+        COUNT(CASE WHEN priority = 'low' THEN 1 END) as low_priority_tasks,
+        COUNT(CASE WHEN due_date IS NOT NULL AND due_date < NOW() AND status != 'completed' AND status != 'cancelled' THEN 1 END) as overdue_tasks,
+        COUNT(CASE WHEN due_date IS NOT NULL AND due_date >= NOW() AND due_date <= NOW() + INTERVAL '3 days' AND status != 'completed' AND status != 'cancelled' THEN 1 END) as upcoming_deadlines
       FROM tasks 
-      WHERE 1=1
+      WHERE (creator_id = $1 OR assignee_id = $1)
     `;
-    
-    const params: any[] = [];
-    
+
+    const params: any[] = [userId];
+
     if (projectId) {
-      query += ` AND project_id = $1`;
+      query += ` AND project_id = $2`;
       params.push(projectId);
     }
-    
+
     const result = await pool.query(query, params);
     return result.rows[0];
   }
@@ -351,7 +381,7 @@ export class TaskModel {
       FROM tasks 
       WHERE id = ANY(
         SELECT unnest(dependencies) FROM tasks WHERE id = $1
-      ) AND status != '已完成'
+      ) AND status != 'completed'
     `;
     
     const result = await pool.query(query, [taskId]);
