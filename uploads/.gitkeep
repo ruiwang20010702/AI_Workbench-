@@ -1,0 +1,2 @@
+# This file ensures the uploads directory is tracked by Git
+# It's needed for Railway deployment when building from the root directory
