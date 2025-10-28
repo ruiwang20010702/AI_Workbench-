@@ -66,5 +66,5 @@ temp
 .tmp
 
 # 上传文件 (开发环境)
-uploads/*
-!uploads/.gitkeep
+# uploads/*
+# !uploads/.gitkeep
