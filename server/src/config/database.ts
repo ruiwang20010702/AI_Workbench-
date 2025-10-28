@@ -21,4 +21,17 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
+// Railway 数据库连接测试
+export const testConnection = async () => {
+  try {
+    const client = await pool.connect();
+    console.log('✅ Database connection successful');
+    client.release();
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    return false;
+  }
+};
+
 export default pool;

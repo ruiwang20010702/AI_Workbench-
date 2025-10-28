@@ -8,9 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
-    "db:migrate": "npx prisma migrate dev",
-    "db:generate": "npx prisma generate",
+    "db:init": "ts-node src/scripts/seed.ts",
     "db:seed": "ts-node src/scripts/seed.ts",
+    "db:migrate": "ts-node src/scripts/migrate.ts",
     "db:fix-ai-usage": "ts-node src/scripts/fix-ai-usage-constraint.ts"
   },
   "keywords": ["nodejs", "express", "typescript", "postgresql", "ai"],

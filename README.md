@@ -104,8 +104,8 @@
 
 4. **访问应用**
    - 前端: http://localhost:3000
-   - 后端 API: http://localhost:8000
-   - API 文档: http://localhost:8000/api-docs
+- 后端 API: http://localhost:3000
+- API 文档: http://localhost:3000/api-docs
 
 ### 生产环境部署
 
@@ -165,11 +165,11 @@ AI_Workbench/
 
 ```javascript
 // 前端 API 配置
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3000';
 
 // 后端服务配置
 const config = {
-  port: process.env.PORT || 8000,
+  port: process.env.PORT || 3000,
   database: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
   openaiApiKey: process.env.OPENAI_API_KEY
