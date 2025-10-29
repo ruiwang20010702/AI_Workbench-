@@ -156,3 +156,20 @@
 - Supabase 项目的 URL、ANON KEY、SERVICE ROLE KEY
 - 希望的前端与后端项目名称（用于生成域名）
 - 是否启用硅基流动/其他模型服务（提供对应 API Key）
+
+---
+
+## 故障排查：注册接口返回 500
+
+- 现象：`POST /api/auth/register` 返回 500，前端控制台报 `AxiosError: ERR_BAD_RESPONSE`。
+- 常见根因：
+  - `SUPABASE_URL` 或 `SUPABASE_SERVICE_ROLE_KEY` 未配置或值错误，导致后端使用安全 Stub 客户端，插入返回空行。
+  - 未在 Supabase 中创建 `users` 表（参见 `server/src/scripts/init-db.sql`）。
+  - 其他数据库错误导致插入失败。
+- 快速自检：
+  - 在 Vercel 后端项目中，确认以下环境变量同时配置在 `Production` 和 `Preview`：
+    - `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`JWT_SECRET`、`CORS_ORIGIN`。
+  - 打开后端日志，搜索 `Supabase insert error` 或 `User creation failed` 关键字。
+  - 在 Supabase SQL 编辑器运行 `server/src/scripts/init-db.sql`，确保 `users` 表存在且可写。
+- 预期修复：
+  - 正确配置环境变量并重新部署后，注册成功返回 201，响应体包含 `user` 与 `token`。
