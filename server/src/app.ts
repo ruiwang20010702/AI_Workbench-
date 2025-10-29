@@ -12,16 +12,38 @@ dotenv.config();
 
 const app = express();
 
+// 在 Vercel 等代理之后运行时，信任第一个代理以正确解析 req.ip
+// 这将消除 express-rate-limit 的 X-Forwarded-For 校验警告
+app.set('trust proxy', 1);
+
 // 安全中间件
 app.use(helmet());
 
-// CORS配置
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+// CORS配置：支持逗号分隔的多个允许源
+const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const allowedOrigins = String(rawCorsOrigin)
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// 统一的 CORS 选项，覆盖预检与实际请求
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // 允许非浏览器环境或同源无 Origin 的请求
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
+// 为所有请求添加 CORS
+app.use(cors(corsOptions));
+// 显式处理预检请求，确保返回正确的 CORS 响应头
+app.options('*', cors(corsOptions));
 
 // 压缩响应
 app.use(compression());
