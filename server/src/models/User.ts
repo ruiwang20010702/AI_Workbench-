@@ -32,7 +32,11 @@ export class UserModel {
       userData.auth_provider || 'local'
     ];
     const result = await pool.query(query, values);
-    return result.rows[0];
+    const created = result.rows[0];
+    if (!created) {
+      throw new Error('User creation failed: no row returned from database');
+    }
+    return created;
   }
 
   static async update(id: string, userData: {

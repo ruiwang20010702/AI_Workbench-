@@ -29,6 +29,11 @@ export class AuthController {
         display_name: username
       });
 
+      // 防御性检查：插入失败或数据库未配置时
+      if (!user || !user.id) {
+        throw new Error('注册失败：数据库未返回有效用户记录');
+      }
+
       // 生成JWT令牌
       const token = generateToken(user);
 
