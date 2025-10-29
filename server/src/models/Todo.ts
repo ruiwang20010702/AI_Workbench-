@@ -339,7 +339,7 @@ export class TodoModel {
       RETURNING id
     `;
     const result = await pool.query(query, [userId, ids]);
-    return (result.rows || []).map(r => r.id);
+    return (result.rows || []).map((r: any) => r.id);
   }
 
   // 搜索：按标题、描述，支持 ILIKE 与简易全文检索
